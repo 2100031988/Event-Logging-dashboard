@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Event Logging Dashboard</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <!-- Custom Styles -->
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: #f8f9fa;
+        }
+        .header {
+            background: #212529;
+            color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+        .verification-status {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 1.2rem;
+        }
+        .verification-valid {
+            background: #28a745;
+            color: #fff;
+        }
+        .verification-invalid {
+            background: #dc3545;
+            color: #fff;
+        }
+        .events-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .search-bar, .filter-bar {
+            margin-bottom: 20px;
+        }
+        .event-card {
+            border: 1px solid #e3e3e3;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .pagination-controls {
+            margin-top: 20px;
+            text-align: center;
+        }
+        .chart-container {
+            margin-top: 20px;
+        }
+        .no-events {
+            text-align: center;
+            padding: 20px;
+            font-size: 1.2rem;
+            color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-database"></i> Event Logging Dashboard</h1>
+            <div id="verification-status" class="verification-status verification-valid">
+                Verification Status: <span id="verification-text">Valid</span>
+                <button class="btn btn-dark ms-3" onclick="manualVerify()">
+                    <i class="fas fa-sync-alt"></i> Verify Manually
+                </button>
+            </div>
+        </div>
+
+        <div class="events-container">
+            <div class="row search-bar">
+                <div class="col-md-6 mb-2">
+                    <input type="text" id="search-input" class="form-control" placeholder="Search by Source or Event Type..." oninput="searchEvents()">
+                </div>
+                <div class="col-md-3 mb-2">
+                    <button class="btn btn-primary w-100" onclick="searchEvents()">
+                        <i class="fas fa-search"></i> Search
+                    </button>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <button class="btn btn-secondary w-100" onclick="toggleFilter()">
+                        <i class="fas fa-filter"></i> Filter
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filter Section -->
+            <div class="filter-bar" id="filter-bar" style="display: none;">
+                <label for="event-type-filter" class="form-label">Filter by Event Type:</label>
+                <select id="event-type-filter" class="form-select" onchange="filterEvents()">
+                    <option value="">All Types</option>
+                    <option value="INFO">INFO</option>
+                    <option value="ERROR">ERROR</option>
+                    <option value="WARNING">WARNING</option>
+                </select>
+            </div>
+
+            <h2 class="text-center mb-4"><i class="fas fa-stream"></i> Live Events</h2>
+            <div id="events"></div>
+            <div class="pagination-controls">
+                <button class="btn btn-primary" id="load-more-btn" onclick="loadMoreEvents()" style="display: none;">
+                    <i class="fas fa-plus-circle"></i> Load More
+                </button>
+            </div>
+            <div id="no-events-message" class="no-events" style="display: none;">
+                No match found.
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="eventsChart" width="400" height="200"></canvas>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        const eventsDiv = document.getElementById('events');
+        const noEventsMessage = document.getElementById('no-events-message');
+        const verificationDiv = document.getElementById('verification-status');
+        const verificationText = document.getElementById('verification-text');
+        const eventTypeFilter = document.getElementById('event-type-filter');
+        const filterBar = document.getElementById('filter-bar');
+        const loadMoreBtn = document.getElementById('load-more-btn');
+        let currentPage = 1;
+        const eventsPerPage = 10;
+        let allEvents = []; // Store all fetched events
+        let filteredEvents = []; // Store filtered events after search
+
+        function fetchVerificationStatus() {
+            fetch('/api/events/verify')
+                .then(response => response.json())
+                .then(data => {
+                    const isValid = data.message === 'Event chain is valid.';
+                    verificationDiv.className = isValid
+                        ? 'verification-status verification-valid'
+                        : 'verification-status verification-invalid';
+                    verificationText.textContent = isValid ? 'Valid' : 'Invalid';
+                    updateButtonColor(isValid);
+                })
+                .catch(error => console.error('Error fetching verification status:', error));
+        }
+
+        function manualVerify() {
+            fetch('/api/events/verify')
+                .then(response => response.json())
+                .then(data => {
+                    const isValid = data.isValid;
+                    alert(isValid ? "Event chain is valid!" : "Event chain is invalid!");
+                    verificationDiv.className = isValid
+                        ? 'verification-status verification-valid'
+                        : 'verification-status verification-invalid';
+                    verificationText.textContent = isValid ? 'Valid' : 'Invalid';
+                    updateButtonColor(isValid);
+                })
+                .catch(error => console.error('Error verifying chain:', error));
+        }
+
+        function updateButtonColor(isValid) {
+            const manualVerifyButton = verificationDiv.querySelector('button');
+            manualVerifyButton.style.background = isValid ? '#38a169' : '#e53e3e';
+        }
+
+        function fetchEvents(page = 1, limit = eventsPerPage) {
+            fetch(`/api/events?page=${page}&limit=${limit}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.events || data.events.length === 0) {
+                        alert("No more events to load.");
+                        return;
+                    }
+                    allEvents = allEvents.concat(data.events);
+                    data.events.forEach(addEventToDisplay);
+                    checkLoadMoreVisibility();
+                })
+                .catch(error => console.error('Error fetching events:', error));
+        }
+
+        function addEventToDisplay(eventData) {
+            const eventElement = document.createElement('div');
+            eventElement.className = 'event-card';
+            eventElement.innerHTML = `
+                <div><strong>Event Type:</strong> ${eventData.eventType}</div>
+                <div><strong>Timestamp:</strong> ${new Date(eventData.timestamp).toLocaleString()}</div>
+                <div><strong>Source:</strong> ${eventData.sourceAppId}</div>
+                <pre>${JSON.stringify(eventData.payload, null, 2)}</pre>
+            `;
+            eventsDiv.appendChild(eventElement);
+        }
+
+        function checkLoadMoreVisibility() {
+            if (allEvents.length > eventsPerPage * currentPage) {
+                loadMoreBtn.style.display = 'block'; // Show Load More if more data exists
+            } else {
+                loadMoreBtn.style.display = 'none';
+            }
+        }
+
+        function loadMoreEvents() {
+            currentPage++;
+            fetchEvents(currentPage);
+        }
+
+        function searchEvents() {
+            const searchQuery = document.getElementById('search-input').value.toLowerCase();
+            filteredEvents = allEvents.filter(event => {
+                return event.sourceAppId.toLowerCase().includes(searchQuery) ||
+                    event.eventType.toLowerCase().includes(searchQuery);
+            });
+
+            eventsDiv.innerHTML = ''; // Clear previous search results
+            filteredEvents.forEach(addEventToDisplay);
+
+            // Show message if no events found
+            if (filteredEvents.length === 0) {
+                noEventsMessage.style.display = 'block';
+                loadMoreBtn.style.display = 'none'; // Hide Load More button when no matches
+            } else {
+                noEventsMessage.style.display = 'none';
+                loadMoreBtn.style.display = 'none'; // Hide Load More when searching
+            }
+        }
+
+        function toggleFilter() {
+            filterBar.style.display = filterBar.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // Initial load
+        fetchVerificationStatus();
+        fetchEvents();
+
+        // Periodic updates
+        setInterval(fetchVerificationStatus, 30000);
+    </script>
+</body>
+</html>
