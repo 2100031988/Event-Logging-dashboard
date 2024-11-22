@@ -1,4 +1,4 @@
-# Project Name
+# Event Logging Dashboard
 
 ## Table of Contents
 1. [Introduction](#introduction)
