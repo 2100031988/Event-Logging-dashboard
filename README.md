@@ -118,6 +118,12 @@ To contribute:
 5. Open a Pull Request.
 
 ### License
-  ```bash
-  This project is licensed under the MIT License.
-  For more details, refer to the LICENSE file in the repository.
+     ```bash
+     This project is licensed under the MIT License.
+     For more details, refer to the LICENSE file in the repository.
+
+### Contact
+For any queries, feel free to reach out:
+```bash
+
+   Email: sabyasachikumar2@gmail.com
